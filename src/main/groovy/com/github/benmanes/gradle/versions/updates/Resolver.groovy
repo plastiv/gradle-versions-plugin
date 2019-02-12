@@ -17,19 +17,8 @@ package com.github.benmanes.gradle.versions.updates
 
 import groovy.transform.TypeChecked
 import groovyx.gpars.GParsPool
-import java.util.concurrent.ConcurrentMap
-import java.util.concurrent.ConcurrentHashMap
 import org.gradle.api.Project
-import org.gradle.api.artifacts.ComponentMetadata
-import org.gradle.api.artifacts.ComponentSelection
-import org.gradle.api.artifacts.Configuration
-import org.gradle.api.artifacts.Dependency
-import org.gradle.api.artifacts.ExternalDependency
-import org.gradle.api.artifacts.LenientConfiguration
-import org.gradle.api.artifacts.ModuleVersionIdentifier
-import org.gradle.api.artifacts.ResolutionStrategy
-import org.gradle.api.artifacts.ResolvedDependency
-import org.gradle.api.artifacts.UnresolvedDependency
+import org.gradle.api.artifacts.*
 import org.gradle.api.artifacts.repositories.ArtifactRepository
 import org.gradle.api.artifacts.repositories.FlatDirectoryArtifactRepository
 import org.gradle.api.artifacts.repositories.IvyArtifactRepository
@@ -43,9 +32,10 @@ import org.gradle.internal.component.external.model.DefaultModuleComponentIdenti
 import org.gradle.maven.MavenModule
 import org.gradle.maven.MavenPomArtifact
 
-import static groovy.transform.TypeCheckingMode.SKIP
-import static org.gradle.api.specs.Specs.SATISFIES_ALL
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.ConcurrentMap
 
+import static groovy.transform.TypeCheckingMode.SKIP
 /**
  * Resolves the configuration to determine the version status of its dependencies.
  */
@@ -78,7 +68,7 @@ class Resolver {
     Configuration latestConfiguration = createLatestConfiguration(configuration, revision)
 
     LenientConfiguration lenient = latestConfiguration.resolvedConfiguration.lenientConfiguration
-    Set<ResolvedDependency> resolved = lenient.getFirstLevelModuleDependencies(SATISFIES_ALL)
+    Set<ResolvedDependency> resolved = lenient.getAllModuleDependencies()
     Set<UnresolvedDependency> unresolved = lenient.getUnresolvedModuleDependencies()
     return getStatus(coordinates, resolved, unresolved)
   }
@@ -119,7 +109,7 @@ class Resolver {
       createQueryDependency(dependency, revision)
     }
 
-    Configuration copy = configuration.copyRecursive().setTransitive(false)
+    Configuration copy = configuration.copyRecursive().setTransitive(true)
     // https://github.com/ben-manes/gradle-versions-plugin/issues/127
     if (copy.metaClass.respondsTo(copy, "setCanBeResolved", Boolean)) {
       copy.setCanBeResolved(true)
@@ -147,7 +137,7 @@ class Resolver {
     String version = (dependency.version == null) ? (dependency.artifacts.empty ? '+' : 'none') : versionQuery
 
     return project.dependencies.create("${dependency.group}:${dependency.name}:${version}") {
-      transitive = false
+      transitive = true
     }
   }
 
@@ -199,7 +189,7 @@ class Resolver {
     }
     LenientConfiguration lenient = copy.resolvedConfiguration.lenientConfiguration
 
-    Set<ResolvedDependency> resolved = lenient.getFirstLevelModuleDependencies(SATISFIES_ALL)
+    Set<ResolvedDependency> resolved = lenient.getAllModuleDependencies()
     for (ResolvedDependency dependency : resolved) {
       Coordinate coordinate = Coordinate.from(dependency.module.id)
       coordinates.put(coordinate.key, coordinate)
